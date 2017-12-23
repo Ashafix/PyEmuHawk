@@ -12,8 +12,6 @@ class EmuhawkException(Exception):
     pass
 
 
-
-
 class Emuhawk:
     def __init__(self, emuhawk_exe=None):
 
@@ -26,8 +24,8 @@ class Emuhawk:
 
     def find_emuhawk_exe(self):
         """
-
-        :return:
+        Tries to find the location of EmuHawk.exe
+        :return: string, pull path of EmuHawk.exe
         """
         if os.getenv('emuhawk') is not None:
             self.emuhawk_exe = os.getenv('emuhawk')
@@ -62,20 +60,18 @@ class Emuhawk:
 
     def read_mmf(self, mmf_name, mmf_len):
         """
-
-        :param mmf_name:
-        :param mmf_len:
-        :return:
+        Reads a Memory Mapped File with the specified name and length
+        :param mmf_name: string, the path of the Memory Mapped File
+        :param mmf_len: int, the length of the file content
+        :return: the content of the file
         """
         with mmap.mmap(-1, mmf_len, mmf_name, mmap.ACCESS_READ) as f:
             return f.read()
 
-    def wait_for_mmf(self):
-        size = int(self.socket_server.listen(run_time=10))
-        print(self.read_mmf('BizhawkTemp_main', size))
-
-
 class SocketServer:
+    """
+    A simple socket server implementation
+    """
     def __init__(self, ip='192.168.178.39', port=9999, timeout=100, no_of_connections=10):
         self.ip = ip
         self.port = port
@@ -90,18 +86,17 @@ class SocketServer:
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print(self.serversocket)
         self.serversocket.settimeout(self.timeout)
-        #self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.serversocket.bind((self.ip, self.port))
         self.serversocket.listen(self.no_of_connections)
         print("listening")
         self.connection, self.address = self.serversocket.accept()
         print(self.connection, self.address)
         print('connection finished')
-        #self.connection.settimeout(1)
 
     def connect(self):
         self.connection, self.address = self.serversocket.accept()
         print(self.connection, self.address)
+
     def listen(self, run_time=10):
 
         incoming = b''
@@ -126,6 +121,9 @@ class SocketServer:
 
 
 class httpServerHandler(http.server.BaseHTTPRequestHandler):
+    """
+    A simple HTTP server capable of handling GET and POST requests
+    """
     def _set_headers(self, response=None, connection=None):
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -153,9 +151,6 @@ class httpServerHandler(http.server.BaseHTTPRequestHandler):
         self._set_headers(response=response, connection='keep-alive')
         self.wfile.write(response)
 
-
-
-
     def log_message(self, format, *args):
         return
 
@@ -163,7 +158,6 @@ if __name__ == '__main__':
     print('Starting HTTP server')
 
     httpd = http.server.HTTPServer(('', 9876), httpServerHandler)
-    #httpd.serve_forever()
     thread_http = threading.Thread(target=httpd.serve_forever)
     thread_http.start()
 

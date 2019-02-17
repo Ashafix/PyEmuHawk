@@ -74,12 +74,7 @@ class SocketServer:
     """
     A simple socket server implementation
     """
-<<<<<<< HEAD
-    def __init__(self, ip=None, port=9990, timeout=None, no_of_connections=10, verbose=True, logger=sys.stdout):
-=======
     def __init__(self, ip=None, port=9999, timeout=100, no_of_connections=10):
->>>>>>> c77da27eb35e07ed5f7e2608be9128fb29718985
-        
         # try to autodetect local IP address
         if ip is None:
             self.ip = socket.gethostbyname(socket.gethostname())

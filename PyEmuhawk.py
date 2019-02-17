@@ -6,6 +6,7 @@ import socket
 import time
 import http.server
 import threading
+import argparse
 
 
 class EmuhawkException(Exception):
@@ -30,29 +31,29 @@ class Emuhawk:
         if os.getenv('emuhawk') is not None:
             self.emuhawk_exe = os.getenv('emuhawk')
             return self.emuhawk_exe
-        else:
-            possible_locations = list()
-            try:
-                possible_locations.append(os.path.join(pathlib.Path.home(),
-                                                       r"Documents\GitHub\BizHawk\output\EmuHawk.exe"))
-            except:
-                possible_locations.append(os.path.join(os.path.expanduser('~'),
-                                                        r"Documents\GitHub\BizHawk\output\EmuHawk.exe"))
-            if os.getenv('ProgramFiles') is not None:
-                possible_locations.append(
-                    os.path.join(os.getenv('ProgramFiles'), r"BizHawk\output\EmuHawk.exe"))
-                possible_locations.append(
-                    os.path.join(os.getenv('ProgramFiles'), r"BizHawk\EmuHawk.exe"))
-            possible_l = len(possible_locations)
-            for i in range(possible_l):
-                if possible_locations[i].startswith('C:'):
-                    possible_locations.append('D:' + possible_locations[i][2:])
-                else:
-                    possible_locations.append('C:' + possible_locations[i][2:])
-            for p in possible_locations:
-                if os.path.isfile(p):
-                    self.emuhawk_exe = p
-                    return self.emuhawk_exe
+
+        possible_locations = []
+        try:
+            possible_locations.append(os.path.join(pathlib.Path.home(),
+                                                   r'Documents\GitHub\BizHawk\output\EmuHawk.exe'))
+        except:
+            possible_locations.append(os.path.join(os.path.expanduser('~'),
+                                                   r'Documents\GitHub\BizHawk\output\EmuHawk.exe'))
+        if os.getenv('ProgramFiles') is not None:
+            possible_locations.append(
+                os.path.join(os.getenv('ProgramFiles'), r'BizHawk\output\EmuHawk.exe'))
+            possible_locations.append(
+                os.path.join(os.getenv('ProgramFiles'), r'BizHawk\EmuHawk.exe'))
+        possible_l = len(possible_locations)
+        for i in range(possible_l):
+            if possible_locations[i].startswith('C:'):
+                possible_locations.append('D:' + possible_locations[i][2:])
+            else:
+                possible_locations.append('C:' + possible_locations[i][2:])
+        for p in possible_locations:
+            if os.path.isfile(p):
+                self.emuhawk_exe = p
+                return self.emuhawk_exe
 
         if self.emuhawk_exe is None:
             raise EmuhawkException('Emuhawk.exe could not be found, please set it manually '
@@ -68,34 +69,45 @@ class Emuhawk:
         with mmap.mmap(-1, mmf_len, mmf_name, mmap.ACCESS_READ) as f:
             return f.read()
 
+
 class SocketServer:
     """
     A simple socket server implementation
     """
-    def __init__(self, ip='192.168.178.39', port=9999, timeout=100, no_of_connections=10):
-        self.ip = ip
+    def __init__(self, ip=None, port=9990, timeout=None, no_of_connections=10, verbose=True, logger=sys.stdout):
+        
+        # try to autodetect local IP address
+        if ip is None:
+            self.ip = socket.gethostbyname(socket.gethostname())
+        else:
+            self.ip = ip
         self.port = port
         self.timeout = timeout
         self.no_of_connections = no_of_connections
         self.serversocket = None
         self.connection = None
-        #self.create_connection()
+        self.address = None
+        self.logger = logger
+        self.verbose = verbose
+
+    def __print(self, message):
+        if self.verbose:
+            self.logger.write(message)
 
     def create_connection(self):
-        print('establishing connection')
+        self.__print('establishing connection\n')
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print(self.serversocket)
         self.serversocket.settimeout(self.timeout)
         self.serversocket.bind((self.ip, self.port))
         self.serversocket.listen(self.no_of_connections)
-        print("listening")
+        self.__print('waiting for connection\n')
         self.connection, self.address = self.serversocket.accept()
-        print(self.connection, self.address)
-        print('connection finished')
+        self.__print('{}, {}'.format(self.connection, self.address))
+        self.__print('connection finished\n')
 
     def connect(self):
         self.connection, self.address = self.serversocket.accept()
-        print(self.connection, self.address)
+        self.__print('{};{}\n'.format(self.connection, self.address))
 
     def listen(self, run_time=10):
 
@@ -109,18 +121,19 @@ class SocketServer:
                 buf = ''
 
             if len(buf) == 0:
-                print('reconnect')
+                self.__print('reconnect\n')
                 self.connect()
             else:
+                self.__print('SOCKET received\n')
                 incoming += buf
                 if buf[-1] == 130 or buf == b'\r\n':
-                    self.connection.sendall(b"ack")
+                    self.connection.sendall(b'ack')
                     break
-                print('SOCKET received')
+               
         return incoming
 
 
-class httpServerHandler(http.server.BaseHTTPRequestHandler):
+class HttpServerHandler(http.server.BaseHTTPRequestHandler):
     """
     A simple HTTP server capable of handling GET and POST requests
     """
@@ -129,15 +142,15 @@ class httpServerHandler(http.server.BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/html; charset=utf-8')
 
         if response is not None:
-            self.send_header("Content-Length", len(response))
+            self.send_header('Content-Length', len(response))
         if connection is not None:
             self.send_header('Connection', connection)
         self.end_headers()
 
     def do_GET(self):
-        print('GET received')
-        self.protocol_version = "HTTP/1.1"
-        response = b"<html><body><h1>hi!</h1></body></html>"
+        sys.stdout.write('GET received\n')
+        self.protocol_version = 'HTTP/1.1'
+        response = b'<html><body><h1>hi!</h1></body></html>'
         self._set_headers(response=response)
         self.wfile.write(response)
 
@@ -145,24 +158,50 @@ class httpServerHandler(http.server.BaseHTTPRequestHandler):
         self._set_headers()
 
     def do_POST(self):
-        print('POST received')
-        response = b"<html><body>OK</body></html>"
-        self.protocol_version = "HTTP/1.1"
+        sys.stdout.write('POST received\n')
+        response = b'<html><body>OK</body></html>'
+        self.protocol_version = 'HTTP/1.1'
         self._set_headers(response=response, connection='keep-alive')
         self.wfile.write(response)
 
     def log_message(self, format, *args):
         return
 
-if __name__ == '__main__':
-    print('Starting HTTP server')
 
-    httpd = http.server.HTTPServer(('', 9876), httpServerHandler)
+def main(args):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--http_port', help='The port of the HTTP server, default:9876', type=int, default=9876)
+    parser.add_argument('--socket_port', help='The port of the socket server, default:9990', type=int, default=9990)
+    args = parser.parse_args(args)
+
+    print('Starting HTTP server')
+    httpd = http.server.HTTPServer(('', args.http_port), HttpServerHandler)
+    print('Running HTTP server at: {}:{}'.format(httpd.server_address[0], httpd.server_address[1]))
+    if httpd.server_address[0] == '0.0.0.0':
+        print('HTTP server address is {}, probably you can use localhost or {} as its IP address'.format(httpd.server_address[0],
+                                                                                                         socket.gethostbyname(
+                                                                                                             socket.gethostname())
+                                                                                                         ))
+        http_address = 'http://{}:{}'.format(socket.gethostbyname(socket.gethostname()), httpd.server_address[1])
+    else:
+        http_address = 'http://{}:{}'.format(httpd.server_address[0], httpd.server_address[1])
+
+    print('Starting socket server')
     thread_http = threading.Thread(target=httpd.serve_forever)
     thread_http.start()
 
-    print('Starting socket server')
-    s = SocketServer()
+    s = SocketServer(port=args.socket_port)
+    print('Socket server running at {}:{}'.format(s.ip, s.port))
+    print('{sep}Settings for Emuhawk:'.format(sep=os.linesep))
+    print('--socket_ip={ip} --socket_port={port} --url_get={http}/get --url_post={http}/post{sep}'.format(ip=s.ip,
+                                                                                                          port=s.port,
+                                                                                                          http=http_address,
+                                                                                                          sep=os.linesep))
+
     s.create_connection()
     while True:
         s.listen()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
